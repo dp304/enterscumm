@@ -1,0 +1,218 @@
+References in '[]' are valid for ScummVM 2.2.0 source code.
+
+256 global objects  [scumm/file.cpp:258] [scumm/resource_v2.cpp:29]
+55 rooms
+25 actors
+25 costumes
+160 scripts
+70 sounds
+
+Resources per room:  [scumm/file.cpp:216]
+ 0, 11,  1,  3,  9, 12,  1, 13, 10,  6,
+ 4,  1,  7,  1,  1,  2,  7,  8, 19,  9,
+ 6,  9,  2,  6,  8,  4, 16,  8,  3,  3,
+12, 12,  2,  8,  1,  1,  2,  1,  9,  1,
+ 3,  7,  3,  3, 13,  5,  4,  3,  1,  1,
+ 3, 10,  1,  0,  0
+
+
+Disk 1:  [scumm/file.cpp:370]
+
+00000: 0x31 0x0a (signature), 2b
+00002: object flags, 256b
+         bits 0-3: object owner  [scumm/resource_v2.cpp:88]
+         bits 4-7: object state
+00102: disk numbers for 55 rooms, 55b
+         0x00 for room 0
+         0x31 ('1') if room is on Disk 1
+         0x32 ('2') if room is on Disk 2
+         0x00 for rooms 53 and 54
+00139: sector number (within track) followed by track number for 55 rooms, 110b
+         0x00 0x00 for room 0
+         How to calculate file position for rooms 1-52:  [scumm/file.cpp:450]
+           track number starts at 1, sector number starts at 0
+           1 sector = 256 bytes
+           tracks  1-17 have 21 sectors each
+           tracks 18-24 have 19 sectors each
+           tracks 25-30 have 18 sectors each
+           tracks 31-35 have 17 sectors each
+         0x00 0x00 for rooms 53 and 54
+001a7: room numbers for 25 costumes, 25b
+001c0: offsets for 25 costumes, 50b
+001f2: room numbers for 160 scripts, 160b
+00292: offsets for 160 scripts, 320b
+003d2: room numbers for 70 sounds, 70b
+00418: offsets for 70 sounds, 140b
+004a4: --END of index ("Room 0")
+
+Disk 2:
+
+00000: 0x32 0x01 (signature), 2b
+00002: 0x01 repeated, 254b
+00100: Room 1 (disk number '2', track number 0x01, sector number 0x01)
+
+
+
+
+
+Vars (initial value):  [scumm/vars.cpp:113]
+	VAR_EGO = 0 (3)  [scumm/vars.cpp:568]
+	VAR_CAMERA_POS_X = 2   //4-pixel units
+	VAR_HAVE_MSG = 3 (0)
+	VAR_ROOM = 4
+	VAR_ACTIVE_OBJECT2 = 5
+	VAR_OVERRIDE = 6
+	VAR_IS_SOUND_RUNNING = 8 (0)
+	VAR_ACTIVE_VERB = 9
+	VAR_CHARCOUNT = 10
+
+Boot script: script 1
+
+
+Room format:
+
+Offsets are relative to room start address.
+Char map, pic map, colour map, mask map, mask data and object map (image) are RLE-encoded, and must be
+extracted first. See "Graphics data (RLE) format" for decoding.
+00000: Total size of room resource, 2b
+00002: ?
+00004: Room width, 4 pixel units, 1b  [scumm/room.cpp:612]
+00005: Room height, 8 pixel units (mostly 0x11 = 17), 1b  [scumm/room.cpp:613]
+00006: 4 colours, 4b  [scumm/gfx.cpp:301]
+0000a: Char map offset, 2b  [scumm/gfx.cpp:303]
+0000c: Pic map offset, 2b  [scumm/gfx.cpp:304]
+0000e: Colour map offset, 2b  [scumm/gfx.cpp:305]
+00010: Mask map offset, 2b  [scumm/gfx.cpp:306]
+00012: Mask data offset, 2b  [scumm/gfx.cpp:310]
+00014: Number of objects in room, 1b  [scumm/room.cpp:628] [scumm/room.cpp:682]
+00015: Boxes offset, 1b  [scumm/room.cpp:744]
+00016: Number of sounds in room, 1b  [scumm/room.cpp:687]
+00017: Number of scripts in room, 1b  [scumm/room.cpp:688]
+00018: Exit script offset, 2b  [scumm/room.cpp:644]
+0001a: Entry script offset, 2b  [scumm/room.cpp:658]
+0001c: Object image offsets, numobj*2b [scumm/object.cpp:1441] [scumm/object.cpp:1446] [scumm/object.cpp:843]
+       Object code offsets, numobj*2b [scumm/object.cpp:1447] [scumm/object.cpp:845]
+         (!)The first value here is also the "Default pointer of objects without image":  [scumm/object.cpp:840]
+         if an object has an image offset with this value, then it has no image.
+       Sound IDs, numsound*1b  [scumm/room.cpp:691]
+       Script IDs, numscript*1b  [scumm/room.cpp:693]
+  ......
+       Exit script
+       Entry script
+
+
+Char map (character set) format:  [scumm/gfx.cpp:3133]
+
+256 four-colour 4x8 characters, 256*8=2048b:
+  pixel rows from top to bottom, 8*1b:
+    each bit pair defines a pixel colour from left(MSB) to right(LSB), 1b:
+      e.g. 10110001 means a row of four pixels with the following colour indices: [2 3 0 1]
+      Colours 0-2 are defined in room resource (see above), same regardless of location
+      Colour 3 is defined by the colour map (see below), can be different for each character location
+00000: Character 0, top pixel row, 1b
+00001: Character 0, second pixel row, 1b
+  ......
+00007: Character 0, bottom pixel row, 1b
+00008: Character 1, top pixel row, 1b
+  ......
+007ff: Character 255, bottom pixel row, 1b
+
+
+Pic map ("text video mode" data used for background graphics) format:  [scumm/gfx.cpp:3131]
+
+Contains character codes (0-255) for the "text" (i.e. background image) in column-major order(!!)
+Number of character columns = room width defined in room resource (see above)
+Number of character rows = room height defined in room resource (see above)
+E.g. a room that matches screen size: 40x17 characters = 160x136 pixels
+00000: Code of top-left character, 1b
+         Bitmap defined by char map (see above)
+         Colours 0-2 are defined in room resource (see above), same regardless of location
+         Colour 3 is defined by the colour map (see below), can be different for each character location
+00001: Code of character at second row, first column, 1b
+  ......
+       Code of bottom right character, 1b
+
+
+Colour map format:  [scumm/gfx.cpp:3124]
+
+Contains "Colour 3" values for each character cell of pic map (see above) in column-major order(!!)
+00000: Colour 3 of top-left character, 1b
+        Only bits 0-2 are used (8 possible colour values for each cell)
+00001: Colour 3 of character at second row, first column, 1b
+  ......
+       Colour 3 of bottom right character, 1b
+
+
+Object code format:  [scumm/object.cpp:914]
+
+00000: ?
+00004: Object ID, 1b
+00005: Object type, 1b
+00006: x position, 4 pixel units, 1b
+00007: y position and parent state, 1b
+         bits 0-6: y position, 8 pixel units
+         bit 7: parent state
+00008: width, 4 pixel units, 1b
+00009: index of parent (0 if no parent), 1b
+0000a: walk x, 4 pixel units, 1b
+0000b: walk y and ?, 1b
+         bits 0-4: walk y, 8 pixel units
+         bits 5-7: ?
+0000c: height and actor dir, 1b
+         bits 0-2: actor dir
+         bits 3-7: height, 8 pixel units
+
+
+Object map (image) format:
+
+Room objects are drawn (in reverse order!) only if:  [scumm/object.cpp:574] [scumm/object.cpp:554]
+  index > 0 and
+  ID > 0 and
+  bit 3 of state is active and
+  has no parent
+First part of object map is like the pic map of the background, but in row-major order(!!), objwidth*objheight*1b:
+00000: Code of top-left character within object's rectangle, 1b
+         Bitmap defined by char map of room (see above)
+         Colours 0-2 are defined in room resource (see above), same regardless of location
+         Colour 3 is defined by the second part of the object map (see below), can be different for each character location
+00001: Code of character at first row, second column, 1b
+  ......
+       Code of bottom right character, 1b
+Second part of object map is like the colour map of the background, but in row-major order(!!), objwidth*objheight*1b:
+00000: Colour 3 of top-left character within object's rectangle, 1b
+        Only bits 0-2 are used (8 possible colour values for each cell)
+00001: Colour 3 of character at first row, second column, 1b
+  ......
+       Colour 3 of bottom right character, 1b
+Third part of object map is the object mask, objwidth*objheight*1b
+
+
+Boxes format:
+"Matrix" resource, id 2:
+  5 bytes per box, repeated num_of_boxes times
+  at num_of_boxes*5 bytes: terminator 0xff
+"Matrix" resource, id 1:
+  series of bytes terminated by 0xff, repeated num_of_boxes times
+
+
+
+Mask data format:  [scumm/gfx.cpp:310]
+00000: (length+8) of following graphics data, 2b
+00002: Graphics data
+
+
+Graphics data (RLE) format:  [engines/scumm/gfx.cpp:3180]
+00000: 4 most commonly used byte values, 4b
+00004: First run length&flag byte, 1b
+         if bit 7 == 1:
+           bits 6-5: index of a commonly used value (as defined above)
+           bits 4-0: (length-1) of data with this byte value (e.g. 0 means 1 byte is generated)
+         if bit 7 == 0 and bit 6 == 1:
+           bits 5-0: (length-1) of bytes with a given value (e.g. 0 means 1 byte is generated),
+                     value is defined by the next byte
+         if bit 7 == 0 and bit 6 == 0:
+           bits 5-0: (length-1) of raw byte values
+                     all stored after this byte
+  ......
+       Second run length&flag byte, 1b
+         ...repeated until desired size is reached
