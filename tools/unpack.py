@@ -71,29 +71,78 @@ def read_resource_rooms_and_offsets(disk1, start, count):
     return (rooms, offsets, start)
 
 
-def extract_resource(disk1, disk2, room_disks, room_offsets, resource_room, resource_offset, typestring='', no=0):
-    disk_no = room_disks[resource_room]
-    if disk_no == 1:
-        source = disk1
-    elif disk_no == 2:
-        source = disk2
-    else:
-        raise RuntimeError('Disk number for room {} invalid'.format(resource_room))
+def extract_rooms(disk1, disk2, room_disks, room_offsets):
+    resources_per_room = [
+        0,  11,  1,  3,  9, 12,  1, 13, 10,  6,
+        4,   1,  7,  1,  1,  2,  7,  8, 19,  9,
+        6,   9,  2,  6,  8,  4, 16,  8,  3,  3,
+        12, 12,  2,  8,  1,  1,  2,  1,  9,  1,
+        3,   7,  3,  3, 13,  5,  4,  3,  1,  1,
+        3,  10,  1,  0,  0 ]
 
-    start = room_offsets[resource_room] + resource_offset
-    length = ( lh(source[start], source[start+1]) )
+    # "index", 00.LFL
+    rooms = [ disk1[0:0x4a4] ]
+    #rooms = [ bytes([ b ^ 0xff for b in disk1[0:0x4a4] ]) ]
 
-    if typestring:
-        print('From Disk {:d} Room {:02d} at offset {:04x} extracting {:s} {:03d} size {:05d}'.format(disk_no, resource_room, resource_offset, typestring, no, length))
+    for room_no in range(1,53):
+        disk_no = room_disks[room_no]
+        if disk_no == 1:
+            source = disk1
+        elif disk_no == 2:
+            source = disk2
+        else:
+            raise RuntimeError('Disk number for room {} invalid'.format(room_no))
 
-    return source[start:start+length]
+        start = room_offsets[room_no]
+        room = bytes()
+        for _ in range(0, resources_per_room[room_no]):
+            length = lh(source[start], source[start+1])
+            room = room + source[start:start+length]
+            start += length
+        rooms.append(room)
+
+    return rooms
 
 
-def save_resources(disk1, disk2, room_disks, room_offsets, resource_rooms, resource_offsets, typestring):
-    for i in range(0,len(resource_rooms)):
-        res = extract_resource(disk1, disk2, room_disks, room_offsets, resource_rooms[i], resource_offsets[i], typestring.upper(), i)
-        with open('{:s}{:03d}.dat'.format(typestring, i), 'wb') as f:
-            f.write(res)
+def get_resource_length(rooms, resource_room, resource_offset):
+    room = rooms[resource_room]
+    if resource_offset + 1 >= len(room):
+        raise RuntimeError('Resource offset {} invalid: room {} has length {}'.format(resource_offset, resource_room, len(room)))
+    res_header = room[resource_offset:resource_offset+2]
+    return lh(res_header[0], res_header[1])
+
+
+def get_resource_metadata(rooms, resource_room, resource_offset, resource_type, resource_no):
+    start = resource_offset
+    try:
+        end = start + get_resource_length(rooms, resource_room, resource_offset)
+        if end > len(rooms[resource_room]):
+            end = None
+        return (resource_room, start, end, resource_type, resource_no)
+    except RuntimeError:
+        return (resource_room, None, None, resource_type, resource_no)
+
+
+def collect_resource_metadata(rooms, costume_rooms, costume_offsets, script_rooms, script_offsets, sound_rooms, sound_offsets):
+    resource_metadata = []
+    for room_no in range(1,53):
+        resource_metadata.append(get_resource_metadata(rooms, room_no, 0, 'room', room_no))
+    for i in range(0, len(costume_rooms)):
+        resource_metadata.append(get_resource_metadata(rooms, costume_rooms[i], costume_offsets[i], 'costume', i))
+    for i in range(0, len(script_rooms)):
+        resource_metadata.append(get_resource_metadata(rooms, script_rooms[i], script_offsets[i], 'script', i))
+    for i in range(0, len(sound_rooms)):
+        resource_metadata.append(get_resource_metadata(rooms, sound_rooms[i], sound_offsets[i], 'sound', i))
+    return resource_metadata
+
+
+def extract_resource(rooms, resource_room, resource_offset):
+    start = resource_offset
+    length = get_resource_length(rooms, resource_room, resource_offset)
+    room = rooms[resource_room]
+    if start + length > len(room):
+        raise RuntimeError('Resource length {} invalid: room {} has length {}, resource ends at {}'.format(length, resource_room, len(room), start+length))
+    return room[start:start+length]
 
 
 def decodeRLE(room, start, length, loglevel=1, loghead='decodeRLE'):
@@ -278,13 +327,11 @@ start = index_start
 (script_rooms, script_offsets, start) = read_resource_rooms_and_offsets(disk1, start, num_scripts)
 (sound_rooms, sound_offsets, start) = read_resource_rooms_and_offsets(disk1, start, num_sounds)
 
-rooms = [ disk1[0:0x4a4] ] + [extract_resource(disk1, disk2, room_disks, room_offsets, room_no, 0) for room_no in range(1, 53)]
+rooms = extract_rooms(disk1, disk2, room_disks, room_offsets)
+
+resource_metadata = collect_resource_metadata(rooms, costume_rooms, costume_offsets, script_rooms, script_offsets, sound_rooms, sound_offsets)
 
 if __name__ == '__main__':
-
-    #save_resources(disk1, disk2, room_disks, room_offsets, costume_rooms, costume_offsets, 'cos')
-    #save_resources(disk1, disk2, room_disks, room_offsets, script_rooms, script_offsets, 'scr')
-    #save_resources(disk1, disk2, room_disks, room_offsets, sound_rooms, sound_offsets, 'sou')
 
     for i in range(0, len(rooms)):
         with open('{:02d}.lfl'.format(i), 'wb') as f:
